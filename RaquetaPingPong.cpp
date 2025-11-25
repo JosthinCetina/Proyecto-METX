@@ -18,6 +18,7 @@ bool lora_ok = false;
 
 // ==== Calibración ====
 float accX_offset = 0, accY_offset = 0, accZ_offset = 0;
+//float gyrX_offset = 0, gyrY_offset = 0, gyrZ_offset = 0;
 
 // --------------------------------------------------
 
@@ -88,6 +89,9 @@ void loop() {
   float accY = a.acceleration.y - accY_offset;
   float accZ = a.acceleration.z - accZ_offset;
 
+  //float gyroX = g.gyro.x - gyrX_offset;
+  //float gyroY = g.gyro.y - gyrY_offset;
+  //float gyroZ = g.gyro.z - gyrZ_offset;
   float gyroX = g.gyro.x;
   float gyroY = g.gyro.y;
   float gyroZ = g.gyro.z;
@@ -110,7 +114,7 @@ void loop() {
     LoRa.endPacket();
   }
 
-  delay(2);  // ~500 Hz → cada 2 ms
+  delay(20);  // ~50 Hz → cada 2 ms
 }
 
 // --------------------------------------------------
@@ -118,6 +122,7 @@ void loop() {
 void calibrarMPU() {
   const int muestras = 200;
   float accX_sum = 0, accY_sum = 0, accZ_sum = 0;
+  //float gyrX_sum = 0, gyrY_sum = 0, gyrZ_sum = 0;
 
   for (int i = 0; i < muestras; i++) {
     sensors_event_t a, g, temp;
@@ -126,10 +131,16 @@ void calibrarMPU() {
     accX_sum += a.acceleration.x;
     accY_sum += a.acceleration.y;
     accZ_sum += a.acceleration.z;
+    //gyrX_sum = a.gyro.x; 
+    //gyrY_sum = a.gyro.y;
+    //gyrZ_sum = a.gyro.z;
     delay(10);
   }
 
   accX_offset = accX_sum / muestras;
   accY_offset = accY_sum / muestras;
   accZ_offset = accZ_sum / muestras;
+  //gyrX_offset = gyrX_sum / muestras;
+  //gyrY_offset = gyrY_sum / muestras;
+  //gyrZ_offset = gyrZ_sum / muestras;
 }
