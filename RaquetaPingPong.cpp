@@ -15,6 +15,8 @@
 
 Adafruit_MPU6050 mpu;
 bool lora_ok = false;
+unsigned long previousMicros = 0;
+const long interval = 20000; // 20ms para 50Hz (1/50 = 0.02s)
 
 // ==== Calibración ====
 float accX_offset = 0, accY_offset = 0, accZ_offset = 0;
@@ -22,13 +24,19 @@ float accX_offset = 0, accY_offset = 0, accZ_offset = 0;
 
 // --------------------------------------------------
 
+struct SensorData {
+  float accX;
+  float accY;
+  float accZ;
+  float gyrX;
+  float gyrY;
+  float gyrZ;
+};
+
 void setup() {
   Serial.begin(115200);
   while (!Serial);
-
   Serial.println("\n========== INICIANDO EMISOR LoRa ==========\n");
-
-  // ==== Inicializar MPU6050 ====
   Serial.println("Iniciando MPU6050...");
   if (!mpu.begin()) {
     Serial.println("No se detectó el MPU6050.");
@@ -60,61 +68,47 @@ void setup() {
 
   lora_ok = true;
   Serial.println("LoRa inicializado correctamente!");
-
-  // ==== APLICAR CONFIGURACIÓN SOLICITADA ====
-  LoRa.setSpreadingFactor(9);         // SF9
+  LoRa.setSpreadingFactor(7);         // SF7
   LoRa.setSignalBandwidth(125E3);     // BW = 125 kHz
   LoRa.setCodingRate4(6);             // CR = 4/6
   LoRa.setTxPower(20);                // Potencia = 20 dBm
-
-  // LoRa.enableCrc();                // CRC opcional
-
-  Serial.println("\n--- CONFIGURACIÓN LoRa ---");
-  Serial.println("Frecuencia: 433.5 MHz");
-  Serial.println("Potencia: 20 dBm");
-  Serial.println("SF: 9");
-  Serial.println("BW: 125 kHz");
-  Serial.println("CR: 4/6");
-  Serial.println("----------------------------------\n");
 }
 
-// --------------------------------------------------
-
 void loop() {
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
+  unsigned long currentMicros = micros();
 
-  // Aplicar correcciones
-  float accX = a.acceleration.x - accX_offset;
-  float accY = a.acceleration.y - accY_offset;
-  float accZ = a.acceleration.z - accZ_offset;
+  // ********** Bucle de Temporización de 50Hz **********
+  if (currentMicros - previousMicros >= interval) {
+    previousMicros = currentMicros; // Guarda el último tiempo de muestreo/transmisión
 
-  //float gyroX = g.gyro.x - gyrX_offset;
-  //float gyroY = g.gyro.y - gyrY_offset;
-  //float gyroZ = g.gyro.z - gyrZ_offset;
-  float gyroX = g.gyro.x;
-  float gyroY = g.gyro.y;
-  float gyroZ = g.gyro.z;
+    // ** LECTURA DEL SENSOR **
+    sensors_event_t a, g, temp;
+    mpu.getEvent(&a, &g, &temp);
 
-  // Crear paquete
-  String paquete = "";
-  paquete += String(accX, 2) + ";";
-  paquete += String(accY, 2) + ";";
-  paquete += String(accZ, 2) + ";";
-  paquete += String(gyroX, 2) + ";";
-  paquete += String(gyroY, 2) + ";";
-  paquete += String(gyroZ, 2);
+    // Aplicar correcciones
+    float accX = a.acceleration.x - accX_offset;
+    float accY = a.acceleration.y - accY_offset;
+    float accZ = a.acceleration.z - accZ_offset;
 
-  Serial.println(paquete);
+    float gyroX = g.gyro.x;
+    float gyroY = g.gyro.y;
+    float gyroZ = g.gyro.z;
 
-  // Enviar LoRa
-  if (lora_ok) {
-    LoRa.beginPacket();
-    LoRa.print(paquete);
-    LoRa.endPacket();
+    // Crear paquete
+    SensorData data;
+    data.accX = a.acceleration.x - accX_offset;
+    data.accY = a.acceleration.y - accY_offset;
+    data.accZ = a.acceleration.z - accZ_offset;
+    data.gyrX = g.gyro.x;
+    data.gyrY = g.gyro.y;
+    data.gyrZ = g.gyro.z;
+    // ** ENVIAR LoRa **
+    if (lora_ok) {
+      LoRa.beginPacket();
+      LoRa.write((uint8_t*)&data, sizeof(data));
+      LoRa.endPacket();
+    }
   }
-
-  delay(20);  // ~50 Hz → cada 2 ms
 }
 
 // --------------------------------------------------
@@ -131,9 +125,9 @@ void calibrarMPU() {
     accX_sum += a.acceleration.x;
     accY_sum += a.acceleration.y;
     accZ_sum += a.acceleration.z;
-    //gyrX_sum = a.gyro.x; 
-    //gyrY_sum = a.gyro.y;
-    //gyrZ_sum = a.gyro.z;
+    //gyrX_sum += a.gyro.x; 
+    //gyrY_sum += a.gyro.y;
+    //gyrZ_sum += a.gyro.z;
     delay(10);
   }
 
