@@ -1,3 +1,4 @@
+#include <Wire.h>
 #include <SPI.h>
 #include <LoRa.h>
 
@@ -8,6 +9,17 @@
 #define SS    18      
 #define RST   14      
 #define DIO0  26      
+
+struct SensorData {
+  float accX;
+  float accY;
+  float accZ;
+  float gyrX;
+  float gyrY;
+  float gyrZ;
+};
+
+SensorData receivedData;
 
 void setup() {
   Serial.begin(9600);
@@ -29,8 +41,8 @@ void setup() {
 
   // ====== AJUSTES PARA RECIBIR TU TRANSMISIÓN ======
 
-  // Spreading Factor = 9
-  LoRa.setSpreadingFactor(9);
+  // Spreading Factor = 7
+  LoRa.setSpreadingFactor(7);
 
   // Bandwidth = 125 kHz
   LoRa.setSignalBandwidth(125E3);
@@ -40,19 +52,34 @@ void setup() {
 
   // Modo de ganancia automática (recomendado)
   LoRa.enableCrc();   // CRC debe coincidir con el emisor
+  LoRa.receive();
 }
 
 void loop() {
   int packetSize = LoRa.parsePacket();
-
   if (packetSize) {
-    Serial.println("-----------------------------");
-    Serial.print("Paquete recibido: ");
-
-    String mensaje = "";
-    while (LoRa.available()) {
-      mensaje += (char)LoRa.read();
+    if (packetSize == sizeof(SensorData)) {
+      LoRa.readBytes((uint8_t*)&receivedData, sizeof(receivedData));
+      Serial.print(receivedData.accX, 2); 
+      Serial.print(";");
+      Serial.print(receivedData.accY, 2); 
+      Serial.print(";");
+      Serial.print(receivedData.accZ, 2); 
+      Serial.print(";");
+      Serial.print(receivedData.gyrX, 2); 
+      Serial.print(";");
+      Serial.print(receivedData.gyrY, 2); 
+      Serial.print(";");
+      Serial.println(receivedData.gyrZ, 2);
+      
+    } else {
+      Serial.print("Error: Paquete de tamaño inesperado (");
+      Serial.print(packetSize);
+      Serial.println(" bytes recibidos).");
+      while (LoRa.available()) {
+        LoRa.read(); // Leer y descartar byte por byte
+      }
     }
-    Serial.println(mensaje);
+    LoRa.receive(); 
   }
 }
